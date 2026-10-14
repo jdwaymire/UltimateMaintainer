@@ -1,0 +1,47 @@
+# release.yml
+#
+# Builds UltimateMaintainer.dll from the public source and attaches it to a GitHub release whenever a version tag
+# (v1.0.0, v1.1.0, ...) is pushed. That is how the DLL on the Releases page gets there; nobody uploads it by hand.
+#
+# NOTE: the tag must match <Version> in the project file (tag v1.0.0 = Version 1.0.0), otherwise the run stops, so a
+# release can never carry a DLL that reports a different version inside Emby.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write     # needed to create the release and upload the DLL
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Check the tag matches the project version
+        run: |
+          v=$(grep -oP '(?<=<Version>)[^<]+' src/UltimateMaintainer/UltimateMaintainer.csproj)
+          if [ "v$v" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match the project version $v"
+            exit 1
+          fi
+
+      - name: Build
+        run: dotnet build -c Release src/UltimateMaintainer
+
+      # gh is preinstalled on GitHub's runners; the release notes list the commits since the last release.
+      - name: Create the release with the DLL
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            src/UltimateMaintainer/bin/Release/netstandard2.0/UltimateMaintainer.dll \
+            --title "Ultimate Maintainer $GITHUB_REF_NAME" \
+            --generate-notes

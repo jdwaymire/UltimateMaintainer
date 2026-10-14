@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>UltimateMaintainer</RootNamespace>
+    <AssemblyName>UltimateMaintainer</AssemblyName>
+    <!-- Emby caches the settings page per plugin version: bump it for every build that changes the page. -->
+    <Version>1.0.0</Version>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Emby SDK. Compile-time only: the server provides these assemblies at runtime, so nothing but
+         UltimateMaintainer.dll goes into the plugins folder. 4.10.0.24-beta2 is the newest 4.10 SDK on NuGet. -->
+    <PackageReference Include="MediaBrowser.Server.Core" Version="4.10.0.24-beta2" PrivateAssets="all" ExcludeAssets="runtime" />
+    <!-- ReadOnlySpan<char> in IUserManager.GetUserById's overloads; part of the .NET runtime Emby runs on -->
+    <PackageReference Include="System.Memory" Version="4.6.0" PrivateAssets="all" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Web\configPage.html" />
+    <EmbeddedResource Include="Web\configPage.js" />
+    <!-- picture on Emby's Plugins page -->
+    <EmbeddedResource Include="Images\thumb.png" />
+  </ItemGroup>
+
+</Project>

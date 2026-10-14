@@ -1,0 +1,170 @@
+<div data-role="page" class="page type-interior pluginConfigurationPage ultimateMaintainerConfigPage"
+     data-require="emby-input,emby-button,emby-checkbox,emby-radio"
+     data-controller="__plugin/UltimateMaintainerJS">
+    <!--
+        Settings page of the plugin (embedded resource, see Plugin.GetPages). The script is configPage.js, loaded via
+        data-controller "__plugin/UltimateMaintainerJS". One section per maintenance job; each job's ids start with its
+        prefix (umPw = partial watch, umNu = next up, umDv = devices) followed by the same names, which configPage.js builds from the
+        prefix: rename one here and rename it there too.
+    -->
+    <div data-role="content">
+        <div class="content-primary">
+            <form class="ultimateMaintainerForm">
+                <h2 class="sectionTitle">Ultimate Maintainer</h2>
+                <p class="fieldDescription">
+                    Small maintenance jobs for your server. Each job runs as a scheduled task under
+                    <b>Dashboard &gt; Scheduled Tasks &gt; Ultimate Maintainer</b>. The log is in the plugin's data folder
+                    (<code>logs/</code>) and in the server log.
+                </p>
+
+                <!-- ==== Partial watch cleanup (Core/PartialWatch.cs) ==== -->
+                <div style="margin: 2em 0; padding-top: 1.5em; border-top: 1px solid rgba(128,128,128,.3);">
+                    <h2 class="sectionTitle">Partial watch cleanup</h2>
+                    <p class="fieldDescription">
+                        Items someone started and never finished stay in their Continue Watching for good. This cleans them up
+                        once they have not been played for a while. Each user is handled on their own.
+                    </p>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="umPwEnabled" />
+                            <span>Clean up every day</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Runs as the scheduled task <b>Partial watch cleanup</b>
+                            (daily 04:00). Use Preview first: the first run may change many items.</div>
+                    </div>
+
+                    <div class="inputContainer" style="max-width: 22em;">
+                        <input is="emby-input" type="number" id="umPwDays" min="1" max="3650" step="1"
+                               label="Clean up items not played for this many days:" />
+                        <div class="fieldDescription">Counted from that user's last play of the item.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="umPwIncludeUndated" />
+                            <span>Also clean up items with no play date</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Some items have a resume point but Emby never recorded
+                            when they were played (often from older apps), so the timeout can't apply to them. Off: they are left alone
+                            and listed under Skipped. On: they are cleaned up on the next run, whatever their age.</div>
+                    </div>
+
+                    <h3 style="margin: 1.2em 0 .6em; font-weight: 500;">What happens to them</h3>
+                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umPwAction" value="watched" id="umPwActionWatched" /><span>Mark as watched</span></label>
+                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umPwAction" value="unwatched" id="umPwActionUnwatched" /><span>Mark as unwatched (clear the resume point)</span></label>
+                    <div class="fieldDescription" style="margin-bottom: 1em;">Either way the item leaves Continue Watching. An item the
+                        user had already watched before (a rewatch they stopped) stays watched; only its resume point is cleared.
+                        Marking an episode watched lets Emby offer the next one; the next episode cleanup below tidies those up.</div>
+
+                    <h3 style="margin: 1.2em 0 .6em; font-weight: 500;">Which users</h3>
+                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umPwUsers" value="all" id="umPwUsersAll" /><span>All users, including users added later</span></label>
+                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umPwUsers" value="chosen" id="umPwUsersChosen" /><span>Only these users</span></label>
+                    <div class="umPwUserPick" style="margin: .4em 0 1em 2.2em;"><div class="umPwUserList">Loading users...</div></div>
+
+                    <h3 style="margin: 1.2em 0 .6em; font-weight: 500;">Which libraries</h3>
+                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umPwLibs" value="all" id="umPwLibsAll" /><span>All video libraries, including libraries added later</span></label>
+                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umPwLibs" value="chosen" id="umPwLibsChosen" /><span>Only these libraries</span></label>
+                    <div class="umPwLibPick" style="margin: .4em 0 1em 2.2em;"><div class="umPwLibList">Loading libraries...</div></div>
+
+                    <div style="display: flex; flex-wrap: wrap; gap: .8em; align-items: center; margin: 1.5em 0 .5em;">
+                        <button is="emby-button" type="button" id="umPwPreview" class="raised"><span>Preview</span></button>
+                        <button is="emby-button" type="button" id="umPwRunNow" class="raised"><span>Run now</span></button>
+                        <button is="emby-button" type="button" id="umPwUndo" class="raised"><span>Undo last run</span></button>
+                    </div>
+                    <div class="fieldDescription umPwLastRun"></div>
+                    <div class="fieldDescription">Preview uses the settings on this page and changes nothing. Run now saves the page
+                        first. Undo puts back the resume points of the last run that changed something, except where the user has
+                        played the item since.</div>
+                    <div class="umPwPreviewOut" style="margin-top: 1em;"></div>
+                </div>
+
+                <!-- ==== Next episode cleanup (Core/NextUp.cs) ==== -->
+                <div style="margin: 2em 0; padding-top: 1.5em; border-top: 1px solid rgba(128,128,128,.3);">
+                    <h2 class="sectionTitle">Next episode cleanup</h2>
+                    <p class="fieldDescription">
+                        Continue Watching also offers the next episode of every series a user has started, even shows they
+                        dropped years ago. This hides that entry once nobody has played the series for a while, the same as
+                        the apps' "Hide from Continue Watching". Nothing is marked watched, and the entry comes back as soon
+                        as the user plays the series again.
+                    </p>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="umNuEnabled" />
+                            <span>Clean up every day</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Runs as the scheduled task <b>Next episode cleanup</b>
+                            (daily 04:05, after the partial watch cleanup).</div>
+                    </div>
+
+                    <div class="inputContainer" style="max-width: 22em;">
+                        <input is="emby-input" type="number" id="umNuDays" min="1" max="3650" step="1"
+                               label="Hide series not played for this many days:" />
+                        <div class="fieldDescription">Counted from that user's last play of any episode of the series.</div>
+                    </div>
+
+                    <h3 style="margin: 1.2em 0 .6em; font-weight: 500;">Which users</h3>
+                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umNuUsers" value="all" id="umNuUsersAll" /><span>All users, including users added later</span></label>
+                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umNuUsers" value="chosen" id="umNuUsersChosen" /><span>Only these users</span></label>
+                    <div class="umNuUserPick" style="margin: .4em 0 1em 2.2em;"><div class="umNuUserList">Loading users...</div></div>
+
+                    <h3 style="margin: 1.2em 0 .6em; font-weight: 500;">Which libraries</h3>
+                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umNuLibs" value="all" id="umNuLibsAll" /><span>All TV libraries, including libraries added later</span></label>
+                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umNuLibs" value="chosen" id="umNuLibsChosen" /><span>Only these libraries</span></label>
+                    <div class="umNuLibPick" style="margin: .4em 0 1em 2.2em;"><div class="umNuLibList">Loading libraries...</div></div>
+
+                    <div style="display: flex; flex-wrap: wrap; gap: .8em; align-items: center; margin: 1.5em 0 .5em;">
+                        <button is="emby-button" type="button" id="umNuPreview" class="raised"><span>Preview</span></button>
+                        <button is="emby-button" type="button" id="umNuRunNow" class="raised"><span>Run now</span></button>
+                        <button is="emby-button" type="button" id="umNuUndo" class="raised"><span>Undo last run</span></button>
+                    </div>
+                    <div class="fieldDescription umNuLastRun"></div>
+                    <div class="fieldDescription">Preview uses the settings on this page and changes nothing. Run now saves the page
+                        first. Undo brings back every entry the last run hid.</div>
+                    <div class="umNuPreviewOut" style="margin-top: 1em;"></div>
+                </div>
+
+                <!-- ==== Old devices cleanup (Core/Devices.cs); no libraries and no Undo ==== -->
+                <div style="margin: 2em 0; padding-top: 1.5em; border-top: 1px solid rgba(128,128,128,.3);">
+                    <h2 class="sectionTitle">Old devices cleanup</h2>
+                    <p class="fieldDescription">
+                        Emby keeps every browser, phone and TV that ever signed in under Dashboard &gt; Devices, forever. This
+                        removes the ones not seen for a long time. Removing a device signs it out; if it comes back, the user
+                        just signs in again. A device that is in use right now is never removed.
+                    </p>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input is="emby-checkbox" type="checkbox" id="umDvEnabled" />
+                            <span>Clean up every day</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Runs as the scheduled task <b>Old devices cleanup</b>
+                            (daily 04:10). There is no Undo for this one: check the Preview first.</div>
+                    </div>
+
+                    <div class="inputContainer" style="max-width: 22em;">
+                        <input is="emby-input" type="number" id="umDvDays" min="7" max="3650" step="1"
+                               label="Remove devices not seen for this many days:" />
+                        <div class="fieldDescription">At least 7 days.</div>
+                    </div>
+
+                    <h3 style="margin: 1.2em 0 .6em; font-weight: 500;">Which users' devices</h3>
+                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umDvUsers" value="all" id="umDvUsersAll" /><span>All, including devices with no known user</span></label>
+                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umDvUsers" value="chosen" id="umDvUsersChosen" /><span>Only devices last used by these users</span></label>
+                    <div class="umDvUserPick" style="margin: .4em 0 1em 2.2em;"><div class="umDvUserList">Loading users...</div></div>
+
+                    <div style="display: flex; flex-wrap: wrap; gap: .8em; align-items: center; margin: 1.5em 0 .5em;">
+                        <button is="emby-button" type="button" id="umDvPreview" class="raised"><span>Preview</span></button>
+                        <button is="emby-button" type="button" id="umDvRunNow" class="raised"><span>Run now</span></button>
+                    </div>
+                    <div class="fieldDescription umDvLastRun"></div>
+                    <div class="fieldDescription">Preview uses the settings on this page and changes nothing. Run now saves the page
+                        first. Every run's list of removed devices is kept in the plugin's data folder (<code>devices/runs/</code>).</div>
+                    <div class="umDvPreviewOut" style="margin-top: 1em;"></div>
+                </div>
+
+                <button is="emby-button" type="submit" class="raised button-submit block"><span>Save</span></button>
+            </form>
+        </div>
+    </div>
+</div>
