@@ -86,7 +86,7 @@ namespace UltimateMaintainer.Emby
         public DevicePlan Preview(DeviceSettings settings) =>
             new DeviceCleaner(_emby, new NullLog()).Plan(settings, DateTime.UtcNow);
 
-        public DeviceRunRecord Run()
+        public DeviceRunRecord Run(bool manual = false)
         {
             var settings = Plugin.Instance.Configuration.GetDeviceSettings();
             using (var log = OpenLog())
@@ -104,6 +104,7 @@ namespace UltimateMaintainer.Emby
                     JsonFiles.Prune(Path.Combine(JobDir, "runs"), 90);
                 }
                 JsonFiles.Save(_json, LatestRunPath, new LatestRun { DateUtc = now, Changed = record.Changes.Count, Action = "removed", Recent = plan.Recent, Skipped = plan.Skipped.Count });
+                JsonFiles.AddHistory(_json, log, new HistoryEntry { DateUtc = now, Job = "devices", Kind = manual ? RunHistory.Manual : RunHistory.Scheduled, Changed = record.Changes.Count, Action = "removed", Recent = plan.Recent, Skipped = plan.Skipped.Count, Errors = 0 });
                 log.Info($"old devices cleanup done: {record.Changes.Count} removed, {plan.Changes.Count - record.Changes.Count} left alone, " +
                          $"{plan.Recent} seen recently or in use, {plan.Skipped.Count} without a date, {plan.Total} devices in all");
                 return record;

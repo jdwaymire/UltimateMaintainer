@@ -1,169 +1,300 @@
 <div data-role="page" class="page type-interior pluginConfigurationPage ultimateMaintainerConfigPage"
-     data-require="emby-input,emby-button,emby-checkbox,emby-radio"
+     data-require="emby-input,emby-button,emby-checkbox"
      data-controller="__plugin/UltimateMaintainerJS">
     <!--
         Settings page of the plugin (embedded resource, see Plugin.GetPages). The script is configPage.js, loaded via
-        data-controller "__plugin/UltimateMaintainerJS". One section per maintenance job; each job's ids start with its
-        prefix (umPw = partial watch, umNu = next up, umDv = devices) followed by the same names, which configPage.js builds from the
-        prefix: rename one here and rename it there too.
+        data-controller "__plugin/UltimateMaintainerJS". Layout: one status card per job, then tabs (one panel per job
+        plus History). Each job panel has data-job="pw|nu|dv" and the same class names inside (umDays, umEnabled, ...),
+        which configPage.js looks up within the panel: rename one here and rename it there too.
+
+        NOTE: every colour comes from Emby's theme variables (--theme-*, --card-background-*, --line-background), so
+        the page follows the theme each admin picks in their profile (light, dark, ...). The only fixed colours are
+        white on the accent colour (as on Emby's own buttons) and the orange warning text.
     -->
+    <style>
+        .umPage {
+            --um-text: hsla(var(--theme-text-color-hue, 0), var(--theme-text-color-saturation, 0%), var(--theme-text-color-lightness, 100%), var(--theme-text-color-alpha, .87));
+            --um-muted: hsla(var(--theme-text-color-hue, 0), var(--theme-text-color-saturation, 0%), var(--theme-text-color-lightness, 100%), var(--theme-secondary-text-color-alpha, .6));
+            --um-accent: hsl(var(--theme-primary-color-hue, 116), var(--theme-primary-color-saturation, 41.7%), var(--theme-primary-color-lightness, 50.2%));
+            --um-accent-text: var(--theme-accent-text-color, #52b54b);
+            --um-card: hsla(var(--card-background-hue, 0), var(--card-background-saturation, 0%), var(--card-background-lightness, 24%), var(--card-background-alpha, .7));
+            --um-line: var(--line-background, rgba(128, 128, 128, .25));
+            --um-soft: color-mix(in srgb, var(--um-text) 5%, transparent);
+            --um-accent-soft: color-mix(in srgb, var(--um-accent) 16%, transparent);
+            color: var(--um-text);
+        }
+        .umPage .umWrap { max-width: 76em; display: flex; flex-direction: column; gap: 1.6em; }
+        .umPage .umHead { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1em; }
+        .umPage .umHead h2 { margin: 0 0 .3em; }
+        .umPage .umMuted { color: var(--um-muted); }
+        .umPage .umSmall { font-size: .85em; }
+        .umPage .umHealth { display: flex; align-items: center; gap: .5em; font-size: .85em; color: var(--um-muted); }
+        .umPage .umDot { width: .55em; height: .55em; border-radius: 50%; background: var(--um-accent); flex: none; }
+        .umPage .umDot.umOff { background: var(--um-muted); }
+
+        /* status cards */
+        /* Emby's plugin form is about 45em wide: three compact cards fit in a row, settings sit above the preview. */
+        .umPage .umCards { display: grid; grid-template-columns: repeat(auto-fit, minmax(12em, 1fr)); gap: .7em; }
+        .umPage .umCard { text-align: left; font: inherit; color: inherit; cursor: pointer; background: var(--um-card); border: 1px solid var(--um-line);
+            border-radius: .9em; padding: .9em; display: flex; flex-direction: column; gap: .8em; }
+        .umPage .umCard:hover { border-color: var(--um-muted); }
+        .umPage .umCard.umSelected { border-color: var(--um-accent); background: color-mix(in srgb, var(--um-accent) 7%, var(--um-card)); }
+        .umPage .umCardTop { display: flex; align-items: center; justify-content: space-between; gap: .8em; }
+        .umPage .umCardName { display: flex; align-items: center; gap: .6em; font-weight: 600; font-size: .92em; line-height: 1.25; }
+        .umPage .umIcon { width: 2.2em; height: 2.2em; border-radius: .6em; background: var(--um-accent-soft); color: var(--um-accent-text);
+            display: flex; align-items: center; justify-content: center; flex: none; }
+        .umPage .umPill { font-size: .78em; font-weight: 600; padding: .25em .7em; border-radius: 999px; background: var(--um-accent-soft); color: var(--um-accent-text); }
+        .umPage .umPill.umOff { background: var(--um-soft); color: var(--um-muted); }
+        .umPage .umBig { display: flex; align-items: baseline; gap: .6em; }
+        .umPage .umBig b { font-size: 1.8em; line-height: 1; }
+        .umPage .umCardFoot { display: flex; flex-direction: column; gap: .3em; padding-top: .7em; border-top: 1px solid var(--um-line); font-size: .8em; color: var(--um-muted); }
+        .umPage .umFootLine { display: flex; justify-content: space-between; gap: .8em; white-space: nowrap; }
+        .umPage .umFootValue { color: var(--um-text); overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+        /* tabs and panels */
+        .umPage .umBox { background: var(--um-card); border: 1px solid var(--um-line); border-radius: .9em; overflow: hidden; }
+        .umPage .umTabs { display: flex; flex-wrap: wrap; gap: .2em; padding: .4em .5em 0; border-bottom: 1px solid var(--um-line); }
+        .umPage .umTab { font: inherit; min-height: 2.9em; padding: 0 .9em; border: 0; background: transparent; color: var(--um-muted); cursor: pointer;
+            border-bottom: 3px solid transparent; font-weight: 500; }
+        .umPage .umTab[aria-selected="true"] { color: var(--um-text); border-bottom-color: var(--um-accent); font-weight: 600; }
+        .umPage .umPanel { padding: 1.2em; }
+        .umPage .umPanel[hidden] { display: none; }
+        .umPage .umJob { display: flex; flex-direction: column; gap: 1.2em; }
+        .umPage .umSettings { min-width: 0; display: flex; flex-direction: column; gap: 1em; }
+        .umPage .umSide { min-width: 0; display: flex; flex-direction: column; gap: 1em; }
+        .umPage .umJobHead { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 1em; }
+        .umPage .umJobHead h3 { margin: 0 0 .3em; font-size: 1.35em; font-weight: 600; }
+        .umPage .umJobHead p { margin: 0; color: var(--um-muted); line-height: 1.5; max-width: 38em; }
+        .umPage .umBlocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(17em, 1fr)); gap: .7em; }
+        .umPage .umBlock { background: var(--um-soft); border: 1px solid var(--um-line); border-radius: .75em; padding: 1em; display: flex; flex-direction: column; gap: .7em; }
+        .umPage .umLabel { font-size: .75em; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--um-accent-text); }
+        .umPage .umSentence { display: flex; flex-wrap: wrap; align-items: center; gap: .5em; line-height: 1.6; }
+        .umPage .umNoWrap { white-space: nowrap; }
+        .umPage .umNumber { width: 4.5em; font: inherit; font-weight: 600; color: inherit; background: var(--um-soft); border: 1px solid var(--um-line);
+            border-radius: .5em; padding: .35em .5em; }
+        .umPage .umNumber:focus { outline: 2px solid var(--um-accent); outline-offset: 1px; }
+        .umPage a.umLink { color: var(--um-accent-text); }
+
+        /* switch (a checkbox) */
+        .umPage .umSwitch { position: relative; display: inline-flex; align-items: center; gap: .6em; cursor: pointer; font-size: .9em; color: var(--um-muted); flex: none; }
+        .umPage .umSwitch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+        .umPage .umTrack { width: 3.2em; height: 1.85em; border-radius: 999px; background: var(--um-line); position: relative; transition: background .15s; }
+        .umPage .umTrack::after { content: ""; position: absolute; top: .2em; left: .2em; width: 1.45em; height: 1.45em; border-radius: 50%; background: #fff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: left .15s; }
+        .umPage .umSwitch input:checked + .umTrack { background: var(--um-accent); }
+        .umPage .umSwitch input:checked + .umTrack::after { left: 1.55em; }
+        .umPage .umSwitch input:focus-visible + .umTrack { outline: 2px solid var(--um-accent); outline-offset: 2px; }
+
+        /* segmented control (radios) */
+        .umPage .umSeg { display: flex; border: 1px solid var(--um-line); border-radius: .6em; padding: .2em; background: var(--um-soft); }
+        .umPage .umSeg label { flex: 1; position: relative; }
+        .umPage .umSeg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+        .umPage .umSeg span { display: flex; align-items: center; justify-content: center; min-height: 2.4em; padding: 0 .6em; border-radius: .45em;
+            cursor: pointer; color: var(--um-muted); text-align: center; font-size: .92em; }
+        .umPage .umSeg input:checked + span { background: var(--um-accent); color: #fff; font-weight: 600; }
+        .umPage .umSeg input:focus-visible + span { outline: 2px solid var(--um-accent); outline-offset: 2px; }
+        .umPage .umCheck { display: flex; gap: .6em; align-items: flex-start; cursor: pointer; line-height: 1.45; }
+        .umPage .umCheck input { margin-top: .25em; accent-color: var(--um-accent); width: 1.1em; height: 1.1em; flex: none; }
+
+        /* chips (users, libraries) */
+        .umPage .umChips { display: flex; flex-wrap: wrap; gap: .5em; }
+        .umPage .umChip { font: inherit; font-size: .92em; min-height: 2.3em; display: inline-flex; align-items: center; gap: .5em; padding: .2em .85em;
+            border-radius: 999px; cursor: pointer; background: transparent; color: var(--um-muted); border: 1px solid var(--um-line); }
+        .umPage .umChip[aria-pressed="true"] { background: var(--um-accent-soft); color: var(--um-text); border-color: var(--um-accent); }
+        .umPage .umChip.umAll[aria-pressed="true"] { font-weight: 600; }
+        .umPage .umChip.umImplied { background: var(--um-soft); color: var(--um-text); border-color: var(--um-line); }
+        .umPage .umAvatar { width: 1.5em; height: 1.5em; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+            font-size: .75em; font-weight: 700; color: #fff; background: var(--um-accent); flex: none; overflow: hidden; }
+        .umPage .umAvatar img { width: 100%; height: 100%; object-fit: cover; }
+
+        /* preview */
+        .umPage .umSideHead { display: flex; align-items: center; justify-content: space-between; gap: .5em; }
+        .umPage .umIconBtn { font: inherit; font-size: .85em; background: transparent; border: 1px solid var(--um-line); color: var(--um-muted); border-radius: .5em;
+            padding: .3em .7em; cursor: pointer; }
+        .umPage .umCount { display: flex; align-items: baseline; gap: .6em; flex-wrap: wrap; }
+        .umPage .umCount b { font-size: 1.9em; line-height: 1.1; }
+        .umPage .umGroups { display: flex; flex-direction: column; gap: .5em; max-height: 34em; overflow: auto; }
+        .umPage details.umGroup { border: 1px solid var(--um-line); border-radius: .6em; overflow: hidden; }
+        .umPage details.umGroup > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: .6em;
+            padding: .6em .8em; background: var(--um-soft); }
+        .umPage details.umGroup > summary::-webkit-details-marker { display: none; }
+        .umPage details.umGroup > summary::after { content: "\25BE"; color: var(--um-muted); }
+        .umPage details.umGroup[open] > summary::after { content: "\25B4"; }
+        .umPage .umWho { display: flex; align-items: center; gap: .6em; font-weight: 500; }
+        .umPage .umRow { display: flex; align-items: center; gap: .8em; padding: .6em .8em; border-top: 1px solid var(--um-line); }
+        .umPage .umThumb { width: 2.2em; height: 3.2em; border-radius: .25em; background: var(--um-soft); flex: none; object-fit: cover;
+            display: flex; align-items: center; justify-content: center; color: var(--um-muted); }
+        .umPage .umRowText { display: flex; flex-direction: column; gap: .2em; min-width: 0; flex: 1; }
+        .umPage .umRowTitle { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .umPage .umBar { height: .25em; border-radius: .2em; background: var(--um-line); overflow: hidden; }
+        .umPage .umBar span { display: block; height: 100%; background: var(--um-accent); }
+        .umPage .umAllTidy { padding: 1.4em; border-radius: .6em; background: var(--um-soft); text-align: center; display: flex; flex-direction: column; gap: .3em; align-items: center; }
+        .umPage .umWarn { color: #e09a2b; }
+        .umPage .umButtons { display: flex; flex-wrap: wrap; gap: .5em; }
+        .umPage .umButtons button { flex: 1 1 9em; margin: 0; }
+        .umPage .umLastRun div + div { margin-top: .2em; }
+
+        /* history */
+        .umPage .umHistory { display: flex; flex-direction: column; gap: .35em; }
+        .umPage .umHistRow { display: flex; flex-wrap: wrap; align-items: center; gap: .4em 1.2em; padding: .7em .9em; border-radius: .6em; background: var(--um-soft); }
+        .umPage .umHistWhen { width: 8.5em; color: var(--um-muted); font-size: .9em; }
+        .umPage .umHistJob { width: 11em; font-weight: 500; }
+        .umPage .umHistWhat { flex: 1 1 14em; }
+        .umPage .umTag { font-size: .78em; font-weight: 600; padding: .2em .65em; border-radius: 999px; background: var(--um-soft); color: var(--um-muted); }
+        .umPage .umTag.umChanged { background: var(--um-accent-soft); color: var(--um-accent-text); }
+
+        .umPage .umSave { display: flex; flex-wrap: wrap; align-items: center; gap: 1em; }
+        .umPage .umSave button { margin: 0; flex: 0 1 16em; }
+    </style>
+
     <div data-role="content">
-        <div class="content-primary">
+        <div class="content-primary umPage">
             <form class="ultimateMaintainerForm">
-                <h2 class="sectionTitle">Ultimate Maintainer</h2>
-                <p class="fieldDescription">
-                    Small maintenance jobs for your server. Each job runs as a scheduled task under
-                    <b>Dashboard &gt; Scheduled Tasks &gt; Ultimate Maintainer</b>. The log is in the plugin's data folder
-                    (<code>logs/</code>) and in the server log.
-                </p>
+                <div class="umWrap">
 
-                <!-- ==== Partial watch cleanup (Core/PartialWatch.cs) ==== -->
-                <div style="margin: 2em 0; padding-top: 1.5em; border-top: 1px solid rgba(128,128,128,.3);">
-                    <h2 class="sectionTitle">Partial watch cleanup</h2>
-                    <p class="fieldDescription">
-                        Items someone started and never finished stay in their Continue Watching for good. This cleans them up
-                        once they have not been played for a while. Each user is handled on their own.
-                    </p>
-
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label>
-                            <input is="emby-checkbox" type="checkbox" id="umPwEnabled" />
-                            <span>Clean up every day</span>
-                        </label>
-                        <div class="fieldDescription checkboxFieldDescription">Runs as the scheduled task <b>Partial watch cleanup</b>
-                            (daily 04:00). Use Preview first: the first run may change many items.</div>
+                    <div class="umHead">
+                        <div>
+                            <h2 class="sectionTitle">Ultimate Maintainer</h2>
+                            <div class="umMuted" style="max-width: 44em; line-height: 1.5;">Small housekeeping jobs that run every night. Each one is off
+                                until you switch it on, and Preview shows what it would change before anything happens.</div>
+                        </div>
+                        <div class="umHealth"><span class="umDot umHealthDot"></span><span class="umHealthText"></span></div>
                     </div>
 
-                    <div class="inputContainer" style="max-width: 22em;">
-                        <input is="emby-input" type="number" id="umPwDays" min="1" max="3650" step="1"
-                               label="Clean up items not played for this many days:" />
-                        <div class="fieldDescription">Counted from that user's last play of the item.</div>
+                    <div class="umCards"></div>
+
+                    <div class="umBox">
+                        <div class="umTabs" role="tablist">
+                            <button type="button" class="umTab" role="tab" data-tab="pw">Partial watch</button>
+                            <button type="button" class="umTab" role="tab" data-tab="nu">Next episode</button>
+                            <button type="button" class="umTab" role="tab" data-tab="dv">Old devices</button>
+                            <button type="button" class="umTab" role="tab" data-tab="history">History</button>
+                        </div>
+
+                        <!-- ==== Partial watch cleanup (Core/PartialWatch.cs) ==== -->
+                        <div class="umPanel" role="tabpanel" data-job="pw">
+                            <div class="umJob">
+                                <div class="umSettings">
+                                    <div class="umJobHead">
+                                        <div>
+                                            <h3>Partial watch cleanup</h3>
+                                            <p>Items someone started and never finished stay in their Continue Watching for good. This tidies them up once
+                                                that user has not played them for a while. Each user is handled on their own.</p>
+                                        </div>
+                                        <label class="umSwitch"><input type="checkbox" class="umEnabled"><span class="umTrack"></span><span>Every night</span></label>
+                                    </div>
+                                    <div class="umBlocks">
+                                        <div class="umBlock">
+                                            <span class="umLabel">When</span>
+                                            <label class="umSentence">Clean up items not played for <span class="umNoWrap"><input type="number" class="umNumber umDays" min="1" max="3650" step="1"> days</span></label>
+                                            <span class="umMuted umSmall">Counted from that user's last play of the item. <span class="umSchedule"></span></span>
+                                        </div>
+                                        <div class="umBlock">
+                                            <span class="umLabel">What happens</span>
+                                            <div class="umSeg">
+                                                <label><input type="radio" name="umPwAction" value="watched" class="umActionWatched"><span>Mark watched</span></label>
+                                                <label><input type="radio" name="umPwAction" value="unwatched" class="umActionUnwatched"><span>Clear resume point</span></label>
+                                            </div>
+                                            <span class="umMuted umSmall">Either way the item leaves Continue Watching. A rewatch someone stopped halfway keeps its
+                                                watched mark; only its resume point goes.</span>
+                                            <label class="umCheck umSmall"><input type="checkbox" class="umIncludeUndated"><span>Also clean up items with no play date
+                                                <span class="umMuted">(some older apps never record one, so the days can't apply; off = they are listed under Skipped)</span></span></label>
+                                        </div>
+                                        <div class="umBlock">
+                                            <span class="umLabel">Who</span>
+                                            <div class="umChips umUsers"><span class="umMuted">Loading users...</span></div>
+                                            <span class="umMuted umSmall umUsersNote"></span>
+                                        </div>
+                                        <div class="umBlock">
+                                            <span class="umLabel">Where</span>
+                                            <div class="umChips umLibs"><span class="umMuted">Loading libraries...</span></div>
+                                            <span class="umMuted umSmall umLibsNote"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="umSide umPreview"></div>
+                            </div>
+                        </div>
+
+                        <!-- ==== Next episode cleanup (Core/NextUp.cs) ==== -->
+                        <div class="umPanel" role="tabpanel" data-job="nu" hidden>
+                            <div class="umJob">
+                                <div class="umSettings">
+                                    <div class="umJobHead">
+                                        <div>
+                                            <h3>Next episode cleanup</h3>
+                                            <p>Continue Watching also offers the next episode of every series a user has started, even shows dropped years ago.
+                                                This hides that entry once the user has not played the series for a while, the same as the apps' "Hide from
+                                                Continue Watching". Nothing is marked watched, and the entry comes back when the user plays the series again.</p>
+                                        </div>
+                                        <label class="umSwitch"><input type="checkbox" class="umEnabled"><span class="umTrack"></span><span>Every night</span></label>
+                                    </div>
+                                    <div class="umBlocks">
+                                        <div class="umBlock">
+                                            <span class="umLabel">When</span>
+                                            <label class="umSentence">Hide series not played for <span class="umNoWrap"><input type="number" class="umNumber umDays" min="1" max="3650" step="1"> days</span></label>
+                                            <span class="umMuted umSmall">Counted from that user's last play of any episode of the series. <span class="umSchedule"></span></span>
+                                        </div>
+                                        <div class="umBlock">
+                                            <span class="umLabel">Who</span>
+                                            <div class="umChips umUsers"><span class="umMuted">Loading users...</span></div>
+                                            <span class="umMuted umSmall umUsersNote"></span>
+                                        </div>
+                                        <div class="umBlock">
+                                            <span class="umLabel">Where</span>
+                                            <div class="umChips umLibs"><span class="umMuted">Loading libraries...</span></div>
+                                            <span class="umMuted umSmall umLibsNote"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="umSide umPreview"></div>
+                            </div>
+                        </div>
+
+                        <!-- ==== Old devices cleanup (Core/Devices.cs); no libraries and no Undo ==== -->
+                        <div class="umPanel" role="tabpanel" data-job="dv" hidden>
+                            <div class="umJob">
+                                <div class="umSettings">
+                                    <div class="umJobHead">
+                                        <div>
+                                            <h3>Old devices cleanup</h3>
+                                            <p>Emby keeps every browser, phone and TV that ever signed in under Dashboard &gt; Devices, forever. This removes
+                                                the ones not seen for a long time. Removing a device signs it out; if it comes back, the user just signs in
+                                                again. A device in use right now is never removed.</p>
+                                        </div>
+                                        <label class="umSwitch"><input type="checkbox" class="umEnabled"><span class="umTrack"></span><span>Every night</span></label>
+                                    </div>
+                                    <div class="umBlocks">
+                                        <div class="umBlock">
+                                            <span class="umLabel">When</span>
+                                            <label class="umSentence">Remove devices not seen for <span class="umNoWrap"><input type="number" class="umNumber umDays" min="7" max="3650" step="1"> days</span></label>
+                                            <span class="umMuted umSmall">At least 7 days. There is no Undo for this job. <span class="umSchedule"></span></span>
+                                        </div>
+                                        <div class="umBlock">
+                                            <span class="umLabel">Whose devices</span>
+                                            <div class="umChips umUsers"><span class="umMuted">Loading users...</span></div>
+                                            <span class="umMuted umSmall umUsersNote"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="umSide umPreview"></div>
+                            </div>
+                        </div>
+
+                        <!-- ==== History (Core/History.cs) ==== -->
+                        <div class="umPanel" role="tabpanel" data-job="history" hidden>
+                            <h3 style="margin: 0 0 .3em; font-size: 1.35em; font-weight: 600;">Run history</h3>
+                            <p class="umMuted" style="margin: 0 0 1em;">Every run of every job, quiet nights included, and every Undo. The full lists of what
+                                each run changed are in the plugin's data folder (<code>runs/</code> of each job).</p>
+                            <div class="umHistory"></div>
+                        </div>
                     </div>
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label>
-                            <input is="emby-checkbox" type="checkbox" id="umPwIncludeUndated" />
-                            <span>Also clean up items with no play date</span>
-                        </label>
-                        <div class="fieldDescription checkboxFieldDescription">Some items have a resume point but Emby never recorded
-                            when they were played (often from older apps), so the timeout can't apply to them. Off: they are left alone
-                            and listed under Skipped. On: they are cleaned up on the next run, whatever their age.</div>
+
+                    <div class="umSave">
+                        <button is="emby-button" type="submit" class="raised button-submit"><span>Save</span></button>
+                        <span class="umMuted umSmall umDirty"></span>
                     </div>
-
-                    <h3 style="margin: 1.2em 0 .6em; font-weight: 500;">What happens to them</h3>
-                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umPwAction" value="watched" id="umPwActionWatched" /><span>Mark as watched</span></label>
-                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umPwAction" value="unwatched" id="umPwActionUnwatched" /><span>Mark as unwatched (clear the resume point)</span></label>
-                    <div class="fieldDescription" style="margin-bottom: 1em;">Either way the item leaves Continue Watching. An item the
-                        user had already watched before (a rewatch they stopped) stays watched; only its resume point is cleared.
-                        Marking an episode watched lets Emby offer the next one; the next episode cleanup below tidies those up.</div>
-
-                    <h3 style="margin: 1.2em 0 .6em; font-weight: 500;">Which users</h3>
-                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umPwUsers" value="all" id="umPwUsersAll" /><span>All users, including users added later</span></label>
-                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umPwUsers" value="chosen" id="umPwUsersChosen" /><span>Only these users</span></label>
-                    <div class="umPwUserPick" style="margin: .4em 0 1em 2.2em;"><div class="umPwUserList">Loading users...</div></div>
-
-                    <h3 style="margin: 1.2em 0 .6em; font-weight: 500;">Which libraries</h3>
-                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umPwLibs" value="all" id="umPwLibsAll" /><span>All video libraries, including libraries added later</span></label>
-                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umPwLibs" value="chosen" id="umPwLibsChosen" /><span>Only these libraries</span></label>
-                    <div class="umPwLibPick" style="margin: .4em 0 1em 2.2em;"><div class="umPwLibList">Loading libraries...</div></div>
-
-                    <div style="display: flex; flex-wrap: wrap; gap: .8em; align-items: center; margin: 1.5em 0 .5em;">
-                        <button is="emby-button" type="button" id="umPwPreview" class="raised"><span>Preview</span></button>
-                        <button is="emby-button" type="button" id="umPwRunNow" class="raised"><span>Run now</span></button>
-                        <button is="emby-button" type="button" id="umPwUndo" class="raised"><span>Undo last run</span></button>
-                    </div>
-                    <div class="fieldDescription umPwLastRun"></div>
-                    <div class="fieldDescription">Preview uses the settings on this page and changes nothing. Run now saves the page
-                        first. Undo puts back the resume points of the last run that changed something, except where the user has
-                        played the item since.</div>
-                    <div class="umPwPreviewOut" style="margin-top: 1em;"></div>
                 </div>
-
-                <!-- ==== Next episode cleanup (Core/NextUp.cs) ==== -->
-                <div style="margin: 2em 0; padding-top: 1.5em; border-top: 1px solid rgba(128,128,128,.3);">
-                    <h2 class="sectionTitle">Next episode cleanup</h2>
-                    <p class="fieldDescription">
-                        Continue Watching also offers the next episode of every series a user has started, even shows they
-                        dropped years ago. This hides that entry once nobody has played the series for a while, the same as
-                        the apps' "Hide from Continue Watching". Nothing is marked watched, and the entry comes back as soon
-                        as the user plays the series again.
-                    </p>
-
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label>
-                            <input is="emby-checkbox" type="checkbox" id="umNuEnabled" />
-                            <span>Clean up every day</span>
-                        </label>
-                        <div class="fieldDescription checkboxFieldDescription">Runs as the scheduled task <b>Next episode cleanup</b>
-                            (daily 04:05, after the partial watch cleanup).</div>
-                    </div>
-
-                    <div class="inputContainer" style="max-width: 22em;">
-                        <input is="emby-input" type="number" id="umNuDays" min="1" max="3650" step="1"
-                               label="Hide series not played for this many days:" />
-                        <div class="fieldDescription">Counted from that user's last play of any episode of the series.</div>
-                    </div>
-
-                    <h3 style="margin: 1.2em 0 .6em; font-weight: 500;">Which users</h3>
-                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umNuUsers" value="all" id="umNuUsersAll" /><span>All users, including users added later</span></label>
-                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umNuUsers" value="chosen" id="umNuUsersChosen" /><span>Only these users</span></label>
-                    <div class="umNuUserPick" style="margin: .4em 0 1em 2.2em;"><div class="umNuUserList">Loading users...</div></div>
-
-                    <h3 style="margin: 1.2em 0 .6em; font-weight: 500;">Which libraries</h3>
-                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umNuLibs" value="all" id="umNuLibsAll" /><span>All TV libraries, including libraries added later</span></label>
-                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umNuLibs" value="chosen" id="umNuLibsChosen" /><span>Only these libraries</span></label>
-                    <div class="umNuLibPick" style="margin: .4em 0 1em 2.2em;"><div class="umNuLibList">Loading libraries...</div></div>
-
-                    <div style="display: flex; flex-wrap: wrap; gap: .8em; align-items: center; margin: 1.5em 0 .5em;">
-                        <button is="emby-button" type="button" id="umNuPreview" class="raised"><span>Preview</span></button>
-                        <button is="emby-button" type="button" id="umNuRunNow" class="raised"><span>Run now</span></button>
-                        <button is="emby-button" type="button" id="umNuUndo" class="raised"><span>Undo last run</span></button>
-                    </div>
-                    <div class="fieldDescription umNuLastRun"></div>
-                    <div class="fieldDescription">Preview uses the settings on this page and changes nothing. Run now saves the page
-                        first. Undo brings back every entry the last run hid.</div>
-                    <div class="umNuPreviewOut" style="margin-top: 1em;"></div>
-                </div>
-
-                <!-- ==== Old devices cleanup (Core/Devices.cs); no libraries and no Undo ==== -->
-                <div style="margin: 2em 0; padding-top: 1.5em; border-top: 1px solid rgba(128,128,128,.3);">
-                    <h2 class="sectionTitle">Old devices cleanup</h2>
-                    <p class="fieldDescription">
-                        Emby keeps every browser, phone and TV that ever signed in under Dashboard &gt; Devices, forever. This
-                        removes the ones not seen for a long time. Removing a device signs it out; if it comes back, the user
-                        just signs in again. A device that is in use right now is never removed.
-                    </p>
-
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label>
-                            <input is="emby-checkbox" type="checkbox" id="umDvEnabled" />
-                            <span>Clean up every day</span>
-                        </label>
-                        <div class="fieldDescription checkboxFieldDescription">Runs as the scheduled task <b>Old devices cleanup</b>
-                            (daily 04:10). There is no Undo for this one: check the Preview first.</div>
-                    </div>
-
-                    <div class="inputContainer" style="max-width: 22em;">
-                        <input is="emby-input" type="number" id="umDvDays" min="7" max="3650" step="1"
-                               label="Remove devices not seen for this many days:" />
-                        <div class="fieldDescription">At least 7 days.</div>
-                    </div>
-
-                    <h3 style="margin: 1.2em 0 .6em; font-weight: 500;">Which users' devices</h3>
-                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umDvUsers" value="all" id="umDvUsersAll" /><span>All, including devices with no known user</span></label>
-                    <label class="radio-label-block"><input type="radio" is="emby-radio" name="umDvUsers" value="chosen" id="umDvUsersChosen" /><span>Only devices last used by these users</span></label>
-                    <div class="umDvUserPick" style="margin: .4em 0 1em 2.2em;"><div class="umDvUserList">Loading users...</div></div>
-
-                    <div style="display: flex; flex-wrap: wrap; gap: .8em; align-items: center; margin: 1.5em 0 .5em;">
-                        <button is="emby-button" type="button" id="umDvPreview" class="raised"><span>Preview</span></button>
-                        <button is="emby-button" type="button" id="umDvRunNow" class="raised"><span>Run now</span></button>
-                    </div>
-                    <div class="fieldDescription umDvLastRun"></div>
-                    <div class="fieldDescription">Preview uses the settings on this page and changes nothing. Run now saves the page
-                        first. Every run's list of removed devices is kept in the plugin's data folder (<code>devices/runs/</code>).</div>
-                    <div class="umDvPreviewOut" style="margin-top: 1em;"></div>
-                </div>
-
-                <button is="emby-button" type="submit" class="raised button-submit block"><span>Save</span></button>
             </form>
         </div>
     </div>

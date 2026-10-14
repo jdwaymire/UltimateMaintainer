@@ -46,6 +46,7 @@ namespace UltimateMaintainer.Emby
 
     public class PreviewRow
     {
+        public long ItemId { get; set; }                // for the poster on the settings page
         public string User { get; set; }
         public string Title { get; set; }
         public string Library { get; set; }
@@ -123,6 +124,7 @@ namespace UltimateMaintainer.Emby
             {
                 Rows = plan.Changes.Select(c => new PreviewRow
                 {
+                    ItemId = c.ItemId,
                     User = c.UserName,
                     Title = c.Title,
                     Library = c.Library,
@@ -140,7 +142,7 @@ namespace UltimateMaintainer.Emby
 
         public object Post(PartialWatchRunRequest request)
         {
-            Locked(() => _job.Run());
+            Locked(() => _job.Run(manual: true));
             return Get(new PartialWatchLastRunRequest());
         }
 

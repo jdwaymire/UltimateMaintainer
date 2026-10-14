@@ -88,7 +88,7 @@ namespace UltimateMaintainer.Emby
             new NextUpCleaner(_emby, new NullLog()).Plan(settings, DateTime.UtcNow);
 
         // With the SAVED settings. Every run is also kept in next-up/runs/ (90 days).
-        public NextUpRunRecord Run()
+        public NextUpRunRecord Run(bool manual = false)
         {
             var settings = Plugin.Instance.Configuration.GetNextUpSettings();
             using (var log = OpenLog())
@@ -108,6 +108,7 @@ namespace UltimateMaintainer.Emby
                     JsonFiles.Prune(Path.Combine(JobDir, "runs"), 90);
                 }
                 JsonFiles.Save(_json, LatestRunPath, new LatestRun { DateUtc = now, Changed = record.Changes.Count, Action = "hidden", Recent = plan.Recent, Skipped = plan.Skipped.Count, Errors = plan.Errors.Count });
+                JsonFiles.AddHistory(_json, log, new HistoryEntry { DateUtc = now, Job = "next-up", Kind = manual ? RunHistory.Manual : RunHistory.Scheduled, Changed = record.Changes.Count, Action = "hidden", Recent = plan.Recent, Skipped = plan.Skipped.Count, Errors = plan.Errors.Count });
                 log.Info($"next episode cleanup done: {record.Changes.Count} hidden, {plan.Changes.Count - record.Changes.Count} left alone, " +
                          $"{plan.Recent} played recently, {plan.Skipped.Count} without a play date, {plan.UsersChecked} user(s), {plan.Errors.Count} error(s)");
                 return record;
@@ -127,6 +128,7 @@ namespace UltimateMaintainer.Emby
             {
                 log.Info($"undo of the next episode cleanup from {record.DateUtc.ToLocalTime():yyyy-MM-dd HH:mm} ({record.Changes.Count} entries)");
                 var result = new NextUpCleaner(_emby, log).Undo(record);
+                JsonFiles.AddHistory(_json, log, new HistoryEntry { DateUtc = DateTime.UtcNow, Job = "next-up", Kind = RunHistory.Undo, Changed = result.Restored, Skipped = result.Skipped });
                 JsonFiles.Save(_json, LastRunPath, record);
                 log.Info($"undo done: {result.Restored} back, {result.Skipped} failed");
                 return result;

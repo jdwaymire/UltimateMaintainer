@@ -93,7 +93,7 @@ namespace UltimateMaintainer.Emby
             new PartialWatchCleaner(_emby, new NullLog()).Plan(settings, DateTime.UtcNow);
 
         // With the SAVED settings. Every run is also kept in partial-watch/runs/ (90 days) for looking back.
-        public RunRecord Run()
+        public RunRecord Run(bool manual = false)
         {
             var settings = Plugin.Instance.Configuration.GetPartialWatchSettings();
             using (var log = OpenLog())
@@ -113,6 +113,7 @@ namespace UltimateMaintainer.Emby
                     JsonFiles.Prune(Path.Combine(JobDir, "runs"), 90);
                 }
                 JsonFiles.Save(_json, LatestRunPath, new LatestRun { DateUtc = now, Changed = record.Changes.Count, Action = settings.Action, Recent = plan.Recent, Skipped = plan.Skipped.Count, Errors = plan.Errors.Count });
+                JsonFiles.AddHistory(_json, log, new HistoryEntry { DateUtc = now, Job = "partial-watch", Kind = manual ? RunHistory.Manual : RunHistory.Scheduled, Changed = record.Changes.Count, Action = settings.Action, Recent = plan.Recent, Skipped = plan.Skipped.Count, Errors = plan.Errors.Count });
                 log.Info($"partial watch cleanup done: {record.Changes.Count} changed, {plan.Changes.Count - record.Changes.Count} left alone, " +
                          $"{plan.Recent} played recently, {plan.Skipped.Count} without a play date, {plan.UsersChecked} user(s), {plan.Errors.Count} error(s)");
                 return record;
@@ -133,6 +134,7 @@ namespace UltimateMaintainer.Emby
             {
                 log.Info($"undo of the partial watch cleanup from {record.DateUtc.ToLocalTime():yyyy-MM-dd HH:mm} ({record.Changes.Count} items)");
                 var result = new PartialWatchCleaner(_emby, log).Undo(record);
+                JsonFiles.AddHistory(_json, log, new HistoryEntry { DateUtc = DateTime.UtcNow, Job = "partial-watch", Kind = RunHistory.Undo, Changed = result.Restored, Skipped = result.Skipped });
                 JsonFiles.Save(_json, LastRunPath, record);
                 log.Info($"undo done: {result.Restored} put back, {result.Skipped} left alone");
                 return result;
@@ -171,6 +173,22 @@ namespace UltimateMaintainer.Emby
                 File.Replace(tmp, path, null);
             else
                 File.Move(tmp, path);
+        }
+
+        // history.json (Core/History.cs): every run and undo, newest first. A failure here must not fail the run that
+        // already happened, so it is only logged.
+        public static string HistoryPath => Path.Combine(Plugin.Instance.DataFolderPath, "history.json");
+
+        public static void AddHistory(IJson json, IRunLog log, HistoryEntry entry)
+        {
+            try
+            {
+                Save(json, HistoryPath, RunHistory.Add(Load<List<HistoryEntry>>(json, HistoryPath), entry));
+            }
+            catch (Exception e)
+            {
+                log.Warn("could not write history.json: " + e.Message);
+            }
         }
 
         public static void Prune(string dir, int keepDays)

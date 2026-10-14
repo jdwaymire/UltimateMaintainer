@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.2
+- **New settings page.** A status card per job (on/off, what is due now, last run, next run from the real schedule),
+  a tab per job with its settings in blocks, users and libraries as chips, and a Preview that updates by itself as
+  settings change, grouped by user, with posters. Run now and Undo sit next to the Preview.
+- **History tab:** every run of every job, quiet nights included, and every Undo (`history.json`, last 200).
+- The page follows the theme picked in the Emby profile (light, dark, ...).
+- A user or library list can no longer be emptied by accident (an empty list used to mean "all").
+
 ## 1.0.1
 - The settings page now shows each job's **latest run**, also when it had nothing to do (for example "Last run:
   2026-10-15 04:10, nothing to do (57 seen recently or in use)."), above the last run that changed something. Before,

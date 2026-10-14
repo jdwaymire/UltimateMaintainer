@@ -78,7 +78,7 @@ namespace UltimateMaintainer.Emby
 
         public object Post(NextUpRunRequest request)
         {
-            Locked(() => _job.Run());
+            Locked(() => _job.Run(manual: true));
             return Get(new NextUpLastRunRequest());
         }
 

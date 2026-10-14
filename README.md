@@ -83,16 +83,30 @@ The plugin is a single file (`UltimateMaintainer.dll`) and brings no extra libra
 
 **Updating:** replace the DLL with the new one and restart Emby. Your settings and the undo records are kept.
 
+## The settings page
+
+At the top, one card per job shows whether it is on, how many items or devices it would change right now, its last
+run and its next run. Click a card (or its tab) to open that job:
+
+- **When**, **What happens**, **Who** and **Where**: the job's settings. Users and libraries are chips: **All**
+  (including ones added later) or just the ones you highlight.
+- **Preview**: what the job would change with the settings on screen, grouped by user, with posters. It updates by
+  itself as you change a setting and never changes anything.
+- **Run now**, **Undo last change**, and the job's last run.
+
+The **History** tab lists every run of every job, quiet nights included, and every Undo. The page follows the theme
+you picked in your Emby profile (light or dark).
+
 ## First run
 
 1. Open the settings page. Every job is **off**.
-2. Pick a job, set its days, users and (where offered) libraries.
-3. Click **Preview**. It lists every item or device the job would change, per user, and changes nothing. On a server
-   that has been running for years, the first run can easily touch hundreds of items, so take a look.
-4. Happy with it? Either click **Run now** (it saves the page first and asks you to confirm with the count), or tick
-   **Enabled** and save: the job then runs every night.
-5. Changed your mind after a Continue Watching run? **Undo** puts back what the last run changed. An item someone has
-   played since is left alone.
+2. Open a job and set its days, users and (where offered) libraries.
+3. Look at **Preview**. It lists every item or device the job would change, per user. On a server that has been
+   running for years, the first run can easily touch hundreds of items, so take a look.
+4. Happy with it? Either click **Run now** (it saves the page first and asks you to confirm with the count), or switch
+   on **Every night** and save: the job then runs every night.
+5. Changed your mind after a Continue Watching run? **Undo last change** puts back what the last run changed. An item
+   someone has played since is left alone.
 
 ## Scheduled tasks
 
@@ -108,14 +122,15 @@ Change the times there like for any other Emby task. A disabled job's task start
 at a time: a scheduled task waits its turn, and a button on the settings page tells you when a job is busy.
 
 A run that changes nothing (the usual quiet night) keeps the previous run's record, so **Undo** still undoes the last
-run that actually changed something. Each section of the settings page shows both: the **latest run** (also when it
-had nothing to do) and the **last run that changed something**.
+run that actually changed something. Each job shows both: the **latest run** (also when it had nothing to do) and
+the **last change**.
 
 ## Files and logs
 
 All in Emby's `plugins` folder:
 
 - `UltimateMaintainer.dll`, settings in `configurations/UltimateMaintainer.xml`
+- `UltimateMaintainer/history.json`: the History tab (the last 200 runs and undos, counts only)
 - `UltimateMaintainer/logs/<date>.log`: the plugin's own log (kept 30 days); the important lines also go to Emby's log
 - `UltimateMaintainer/partial-watch/`, `next-up/`, `devices/`: each job's `latest-run.json` (the latest run, quiet
   or not), `last-run.json` (the last run that changed something, used by Undo) and `runs/` with every run that

@@ -68,7 +68,7 @@ namespace UltimateMaintainer.Emby
                 throw new InvalidOperationException("A cleanup is running right now. Try again when it has finished.");
             try
             {
-                _job.Run();
+                _job.Run(manual: true);
             }
             finally
             {
