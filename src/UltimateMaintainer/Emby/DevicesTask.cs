@@ -79,6 +79,7 @@ namespace UltimateMaintainer.Emby
         static string DataDir => Plugin.Instance.DataFolderPath;
         static string JobDir => Path.Combine(DataDir, "devices");
         static string LastRunPath => Path.Combine(JobDir, "last-run.json");
+        static string LatestRunPath => Path.Combine(JobDir, "latest-run.json");
 
         public RunLog OpenLog() => new RunLog(_logger, Path.Combine(DataDir, "logs"));
 
@@ -102,6 +103,7 @@ namespace UltimateMaintainer.Emby
                     JsonFiles.Save(_json, Path.Combine(JobDir, "runs", now.ToLocalTime().ToString("yyyy-MM-dd_HHmmss") + ".json"), record);
                     JsonFiles.Prune(Path.Combine(JobDir, "runs"), 90);
                 }
+                JsonFiles.Save(_json, LatestRunPath, new LatestRun { DateUtc = now, Changed = record.Changes.Count, Action = "removed", Recent = plan.Recent, Skipped = plan.Skipped.Count });
                 log.Info($"old devices cleanup done: {record.Changes.Count} removed, {plan.Changes.Count - record.Changes.Count} left alone, " +
                          $"{plan.Recent} seen recently or in use, {plan.Skipped.Count} without a date, {plan.Total} devices in all");
                 return record;
@@ -109,5 +111,7 @@ namespace UltimateMaintainer.Emby
         }
 
         public DeviceRunRecord LastRun() => JsonFiles.Load<DeviceRunRecord>(_json, LastRunPath);
+
+        public LatestRun Latest() => JsonFiles.Load<LatestRun>(_json, LatestRunPath);
     }
 }

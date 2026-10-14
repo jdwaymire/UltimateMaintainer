@@ -28,7 +28,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
     // columns: preview table [heading, cell(row), right-aligned?]. noun: what a preview row is called.
     // libraryTypes: only offer libraries of these Emby types ('mixed' or '' = mixed content); leave out for every video library.
     // checks: extra checkboxes [element id suffix, config key, preview field]. recentText: what Preview's "left alone"
-    // count means. A job without config.Libraries has no library picker; one without undoText has no Undo button.
+    // count means, recentShort the same for the last-run line. A job without config.Libraries has no library picker; one without undoText has no Undo button.
 
     var jobs = [
         {
@@ -38,6 +38,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             api: 'UltimateMaintainer/PartialWatch',
             noun: 'item',
             verb: 'would change',
+            recentShort: 'played recently',
             doneText: function (r) { return r.Action === 'unwatched' ? 'resume points cleared' : 'marked watched'; },
             undoText: 'Puts back the resume points (and watched marks) the last cleanup changed. Items played since then are left as they are.',
             columns: [
@@ -58,6 +59,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             libraryTypes: ['tvshows', 'mixed', ''],
             nouns: 'next-episode entries',
             verb: 'would be hidden',
+            recentShort: 'played recently',
             doneText: function () { return 'hidden from Continue Watching'; },
             undoText: 'Brings back every next-episode entry the last cleanup hid.',
             columns: [
@@ -76,6 +78,7 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             noun: 'device',
             verb: 'would be removed',
             recentText: 'seen recently or in use are kept',
+            recentShort: 'seen recently or in use',
             minDays: 7,
             doneText: function () { return 'removed'; },
             columns: [
@@ -227,14 +230,45 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
             if (undo) {
                 undo.disabled = !r.Exists || r.Undone;
             }
-            el.textContent = !r.Exists ? 'No cleanup has changed anything yet.'
-                : 'Last run that changed something: ' + r.Date + ', ' + count(job, r.Changed) + ' ' + job.doneText(r) + (r.Undone ? ', undone.' : '.');
+            // One div per line: Emby's CSS overrides white-space on .fieldDescription, so a newline would not show
+            // (found 2026-10-14).
+            el.textContent = '';
+            lastRunText(job, r).forEach(function (line) {
+                var d = document.createElement('div');
+                d.textContent = line;
+                el.appendChild(d);
+            });
         }, function () {
             if (undo) {
                 undo.disabled = true;
             }
             el.textContent = '';
         });
+    }
+
+    // Two lines (an array): the latest run (quiet nights too, so the admin sees the job is running) and the last run that changed
+    // something (what Undo works on). One line when the latest run is that run; the old line alone until the first
+    // run since 1.0.1 (no latest-run.json yet).
+    function lastRunText(job, r) {
+        var changedLine = !r.Exists ? 'No run has changed anything yet.'
+            : 'Last run that changed something: ' + r.Date + ', ' + count(job, r.Changed) + ' ' + job.doneText(r) + (r.Undone ? ', undone.' : '.');
+        if (!r.LatestDate) {
+            return [changedLine];
+        }
+        var extra = [r.LatestRecent + ' ' + job.recentShort];
+        if (r.LatestSkipped) {
+            extra.push(r.LatestSkipped + ' without a date');
+        }
+        if (r.LatestErrors) {
+            extra.push(plural(r.LatestErrors, 'error'));
+        }
+        var latest = 'Last run: ' + r.LatestDate + ', ' +
+            (r.LatestChanged ? count(job, r.LatestChanged) + ' ' + job.doneText({ Action: r.LatestAction }) : 'nothing to do') +
+            ' (' + extra.join(', ') + ')';
+        if (r.LatestChanged && r.Exists && r.Date === r.LatestDate) {
+            return [latest + (r.Undone ? ', undone.' : '.')];
+        }
+        return [latest + '.', changedLine];
     }
 
     function countByUser(job, rows) {
@@ -337,7 +371,8 @@ define(['baseView', 'loading', 'emby-input', 'emby-button', 'emby-checkbox', 'em
                     return postJson(job.api + '/Run');
                 }).then(function (r) {
                     loading.hide();
-                    toast('Cleanup done: ' + count(job, r.Exists ? r.Changed : 0) + ' ' + job.doneText(r) + '.');
+                    // The latest run is this one; Changed/Date may be an older run's when this one changed nothing.
+                    toast('Cleanup done: ' + count(job, r.LatestDate ? r.LatestChanged : 0) + ' ' + job.doneText({ Action: r.LatestAction }) + '.');
                     loadLastRun(view, job);
                     preview(view, job).catch(function () { });
                 }, function (err) {

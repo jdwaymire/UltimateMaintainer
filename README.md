@@ -108,7 +108,8 @@ Change the times there like for any other Emby task. A disabled job's task start
 at a time: a scheduled task waits its turn, and a button on the settings page tells you when a job is busy.
 
 A run that changes nothing (the usual quiet night) keeps the previous run's record, so **Undo** still undoes the last
-run that actually changed something.
+run that actually changed something. Each section of the settings page shows both: the **latest run** (also when it
+had nothing to do) and the **last run that changed something**.
 
 ## Files and logs
 
@@ -116,8 +117,9 @@ All in Emby's `plugins` folder:
 
 - `UltimateMaintainer.dll`, settings in `configurations/UltimateMaintainer.xml`
 - `UltimateMaintainer/logs/<date>.log`: the plugin's own log (kept 30 days); the important lines also go to Emby's log
-- `UltimateMaintainer/partial-watch/`, `next-up/`, `devices/`: each job's `last-run.json` (used by Undo and the
-  "last run" line) and `runs/` with every run that changed something (kept 90 days)
+- `UltimateMaintainer/partial-watch/`, `next-up/`, `devices/`: each job's `latest-run.json` (the latest run, quiet
+  or not), `last-run.json` (the last run that changed something, used by Undo) and `runs/` with every run that
+  changed something (kept 90 days)
 
 ## Building from source
 

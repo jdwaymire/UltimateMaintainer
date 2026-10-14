@@ -80,6 +80,7 @@ namespace UltimateMaintainer.Emby
         static string DataDir => Plugin.Instance.DataFolderPath;
         static string JobDir => Path.Combine(DataDir, "next-up");
         static string LastRunPath => Path.Combine(JobDir, "last-run.json");
+        static string LatestRunPath => Path.Combine(JobDir, "latest-run.json");
 
         public RunLog OpenLog() => new RunLog(_logger, Path.Combine(DataDir, "logs"));
 
@@ -106,6 +107,7 @@ namespace UltimateMaintainer.Emby
                     JsonFiles.Save(_json, Path.Combine(JobDir, "runs", now.ToLocalTime().ToString("yyyy-MM-dd_HHmmss") + ".json"), record);
                     JsonFiles.Prune(Path.Combine(JobDir, "runs"), 90);
                 }
+                JsonFiles.Save(_json, LatestRunPath, new LatestRun { DateUtc = now, Changed = record.Changes.Count, Action = "hidden", Recent = plan.Recent, Skipped = plan.Skipped.Count, Errors = plan.Errors.Count });
                 log.Info($"next episode cleanup done: {record.Changes.Count} hidden, {plan.Changes.Count - record.Changes.Count} left alone, " +
                          $"{plan.Recent} played recently, {plan.Skipped.Count} without a play date, {plan.UsersChecked} user(s), {plan.Errors.Count} error(s)");
                 return record;
@@ -113,6 +115,8 @@ namespace UltimateMaintainer.Emby
         }
 
         public NextUpRunRecord LastRun() => JsonFiles.Load<NextUpRunRecord>(_json, LastRunPath);
+
+        public LatestRun Latest() => JsonFiles.Load<LatestRun>(_json, LatestRunPath);
 
         public UndoResult Undo()
         {

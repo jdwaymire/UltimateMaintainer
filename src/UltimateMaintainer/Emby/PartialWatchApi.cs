@@ -74,6 +74,28 @@ namespace UltimateMaintainer.Emby
         public int Changed { get; set; }
         public string Action { get; set; }
         public bool Undone { get; set; }
+
+        // The latest run, quiet or not (see LatestRun); LatestDate stays null until a run since 1.0.1.
+        public string LatestDate { get; set; }
+        public int LatestChanged { get; set; }
+        public string LatestAction { get; set; }
+        public int LatestRecent { get; set; }
+        public int LatestSkipped { get; set; }
+        public int LatestErrors { get; set; }
+
+        public LastRunView With(LatestRun l)
+        {
+            if (l != null)
+            {
+                LatestDate = l.DateUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+                LatestChanged = l.Changed;
+                LatestAction = l.Action;
+                LatestRecent = l.Recent;
+                LatestSkipped = l.Skipped;
+                LatestErrors = l.Errors;
+            }
+            return this;
+        }
     }
 
     [Route("/UltimateMaintainer/PartialWatch/Undo", "POST", Summary = "Put back what the last cleanup changed")]
@@ -125,7 +147,7 @@ namespace UltimateMaintainer.Emby
         public object Get(PartialWatchLastRunRequest request)
         {
             var r = _job.LastRun();
-            return r == null
+            return (r == null
                 ? new LastRunView()
                 : new LastRunView
                 {
@@ -134,7 +156,7 @@ namespace UltimateMaintainer.Emby
                     Changed = r.Changes.Count,
                     Action = r.Action,
                     Undone = r.Undone,
-                };
+                }).With(_job.Latest());
         }
 
         public object Post(PartialWatchUndoRequest request)

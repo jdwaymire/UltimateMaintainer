@@ -25,6 +25,19 @@ namespace UltimateMaintainer.Core
         string Serialize(object value);
     }
 
+    // Every run, quiet or not (<job>/latest-run.json): the page's "Last run" line. last-run.json only holds the last run
+    // that changed something (Undo's record); on a tidy server that one is soon days old and the job looked stopped.
+    // Found 2026-10-14 (old devices: 57 devices all recent, line stuck on the first run).
+    public class LatestRun
+    {
+        public DateTime DateUtc { get; set; }
+        public int Changed { get; set; }
+        public string Action { get; set; }
+        public int Recent { get; set; }
+        public int Skipped { get; set; }
+        public int Errors { get; set; }
+    }
+
     // "all" (or empty) = everything, including things added later; otherwise a comma-separated list of ids.
     public class Selection
     {

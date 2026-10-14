@@ -85,7 +85,7 @@ namespace UltimateMaintainer.Emby
         public object Get(NextUpLastRunRequest request)
         {
             var r = _job.LastRun();
-            return r == null
+            return (r == null
                 ? new LastRunView()
                 : new LastRunView
                 {
@@ -94,7 +94,7 @@ namespace UltimateMaintainer.Emby
                     Changed = r.Changes.Count,
                     Action = "hidden",
                     Undone = r.Undone,
-                };
+                }).With(_job.Latest());
         }
 
         public object Post(NextUpUndoRequest request)

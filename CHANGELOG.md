@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1
+- The settings page now shows each job's **latest run**, also when it had nothing to do (for example "Last run:
+  2026-10-15 04:10, nothing to do (57 seen recently or in use)."), above the last run that changed something. Before,
+  only the run that changed something was shown, so on a tidy server a job that ran every night looked like it had
+  stopped.
+- Run now's message counts what that run changed; after a run with nothing to do it showed the count of an earlier run.
+
 ## 1.0.0
 - First public release. Three maintenance jobs, each off until switched on, with its own settings section, Preview,
   Run now and daily scheduled task:
